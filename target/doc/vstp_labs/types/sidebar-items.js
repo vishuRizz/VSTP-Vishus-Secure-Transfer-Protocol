@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["VSTP_MAGIC","VSTP_VERSION"],"enum":["FrameType","VstpError"],"struct":["Flags","Frame","Header"],"type":["SessionId"]};

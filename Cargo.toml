@@ -1,0 +1,15 @@
+[package]
+name = "vstp-labs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytes = "1.5"
+byteorder = "1.5"
+thiserror = "1.0"
+bitflags = "2.4"
+crc-any = "2.4"
+tokio-util = { version = "0.7", features = ["codec"] }
+
+[dev-dependencies]
+rand = "0.8"

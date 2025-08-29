@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="VSTP - Vishu’s Secure Transfer Protocol"><title>vstp_labs - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="vstp_labs" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../vstp_labs/index.html">vstp_labs</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li></ul></section></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">vstp_labs</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../src/vstp_labs/lib.rs.html#1-82">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="vstp---vishus-secure-transfer-protocol"><a class="doc-anchor" href="#vstp---vishus-secure-transfer-protocol">§</a>VSTP - Vishu’s Secure Transfer Protocol</h2>
+<p>A general-purpose, binary, extensible application-layer protocol designed to be:</p>
+<ul>
+<li><strong>Secure by default</strong> on TCP (TLS 1.3)</li>
+<li><strong>Fast</strong> on UDP (no TLS initially)</li>
+<li><strong>Minimal but extensible</strong> with binary headers</li>
+<li><strong>Easy to implement</strong> across languages</li>
+</ul>
+<h3 id="quick-start"><a class="doc-anchor" href="#quick-start">§</a>Quick Start</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>vstp_labs::{Frame, FrameType, Flags};
+ 
+<span class="comment">// Create a simple data frame
+</span><span class="kw">let </span>frame = Frame::new(FrameType::Data)
+    .with_header(<span class="string">"content-type"</span>, <span class="string">"text/plain"</span>)
+    .with_payload(<span class="string">b"Hello, VSTP!"</span>.to_vec())
+    .with_flag(Flags::REQ_ACK);
+ 
+<span class="comment">// Encode to bytes
+</span><span class="kw">let </span>encoded = vstp_labs::frame::encode_frame(<span class="kw-2">&amp;</span>frame)<span class="question-mark">?</span>;
+ 
+<span class="comment">// Decode from bytes
+</span><span class="kw">let </span><span class="kw-2">mut </span>buf = bytes::BytesMut::from(<span class="kw-2">&amp;</span>encoded[..]);
+<span class="kw">let </span>decoded = vstp_labs::frame::try_decode_frame(<span class="kw-2">&amp;mut </span>buf, <span class="number">1024</span>)<span class="question-mark">?</span>.unwrap();
+ 
+<span class="macro">assert_eq!</span>(frame, decoded);</code></pre></div>
+<h3 id="protocol-overview"><a class="doc-anchor" href="#protocol-overview">§</a>Protocol Overview</h3>
+<p>VSTP frames have the following wire format:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>[MAGIC (<span class="number">2B</span>)] [VER (<span class="number">1B</span>)] [TYPE (<span class="number">1B</span>)] [FLAGS (<span class="number">1B</span>)]
+[HDR_LEN (<span class="number">2B </span>LE)] [PAY_LEN (<span class="number">4B </span>BE)] [HEADERS...] [PAYLOAD...]
+[optional CRC16 over HEADERS|PAYLOAD <span class="kw">if </span>FLAGS.CRC=<span class="number">1</span>]</code></pre></div>
+<p>Where:</p>
+<ul>
+<li><strong>MAGIC</strong>: <code>0x56 0x54</code> (“VT”) to identify VSTP</li>
+<li><strong>VER</strong>: Protocol version (<code>0x01</code> for v1)</li>
+<li><strong>TYPE</strong>: Message type (Hello, Welcome, Data, etc.)</li>
+<li><strong>FLAGS</strong>: Bit flags (REQ_ACK, CRC, FRAG, COMP)</li>
+<li><strong>HDR_LEN</strong>: Little-endian header section length</li>
+<li><strong>PAY_LEN</strong>: Big-endian payload length</li>
+<li><strong>HEADERS</strong>: Concatenated binary K/V entries</li>
+<li><strong>PAYLOAD</strong>: Raw bytes (UTF-8 text, JSON, binary, etc.)</li>
+<li><strong>CHECKSUM</strong>: CRC16-IBM over HEADERS|PAYLOAD (optional)</li>
+</ul>
+<h3 id="transport-modes"><a class="doc-anchor" href="#transport-modes">§</a>Transport Modes</h3>
+<ul>
+<li><strong>TCP mode</strong>: Reliable + encrypted (TLS 1.3 via rustls)</li>
+<li><strong>UDP mode</strong>: Connectionless + fast (no TLS in v0.1)</li>
+</ul>
+<h3 id="message-types"><a class="doc-anchor" href="#message-types">§</a>Message Types</h3><div><table><thead><tr><th>Type</th><th>Name</th><th>Direction</th><th>Description</th></tr></thead><tbody>
+<tr><td>0x01</td><td>HELLO</td><td>Client → Server</td><td>Start of session</td></tr>
+<tr><td>0x02</td><td>WELCOME</td><td>Server → Client</td><td>Server accept</td></tr>
+<tr><td>0x03</td><td>DATA</td><td>Both</td><td>Application data</td></tr>
+<tr><td>0x04</td><td>PING</td><td>Both</td><td>Keepalive request</td></tr>
+<tr><td>0x05</td><td>PONG</td><td>Both</td><td>Keepalive response</td></tr>
+<tr><td>0x06</td><td>BYE</td><td>Both</td><td>Graceful close</td></tr>
+<tr><td>0x07</td><td>ACK</td><td>Both</td><td>Acknowledgement</td></tr>
+<tr><td>0x08</td><td>ERR</td><td>Both</td><td>Error frame</td></tr>
+</tbody></table>
+</div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name" id="reexport.Frame"><code>pub use types::<a class="struct" href="types/struct.Frame.html" title="struct vstp_labs::types::Frame">Frame</a>;</code></div></li><li><div class="item-name" id="reexport.FrameType"><code>pub use types::<a class="enum" href="types/enum.FrameType.html" title="enum vstp_labs::types::FrameType">FrameType</a>;</code></div></li><li><div class="item-name" id="reexport.Header"><code>pub use types::<a class="struct" href="types/struct.Header.html" title="struct vstp_labs::types::Header">Header</a>;</code></div></li><li><div class="item-name" id="reexport.Flags"><code>pub use types::<a class="struct" href="types/struct.Flags.html" title="struct vstp_labs::types::Flags">Flags</a>;</code></div></li><li><div class="item-name" id="reexport.VstpError"><code>pub use types::<a class="enum" href="types/enum.VstpError.html" title="enum vstp_labs::types::VstpError">VstpError</a>;</code></div></li><li><div class="item-name" id="reexport.SessionId"><code>pub use types::<a class="type" href="types/type.SessionId.html" title="type vstp_labs::types::SessionId">SessionId</a>;</code></div></li><li><div class="item-name" id="reexport.VSTP_MAGIC"><code>pub use types::<a class="constant" href="types/constant.VSTP_MAGIC.html" title="constant vstp_labs::types::VSTP_MAGIC">VSTP_MAGIC</a>;</code></div></li><li><div class="item-name" id="reexport.VSTP_VERSION"><code>pub use types::<a class="constant" href="types/constant.VSTP_VERSION.html" title="constant vstp_labs::types::VSTP_VERSION">VSTP_VERSION</a>;</code></div></li><li><div class="item-name" id="reexport.encode_frame"><code>pub use frame::<a class="fn" href="frame/fn.encode_frame.html" title="fn vstp_labs::frame::encode_frame">encode_frame</a>;</code></div></li><li><div class="item-name" id="reexport.try_decode_frame"><code>pub use frame::<a class="fn" href="frame/fn.try_decode_frame.html" title="fn vstp_labs::frame::try_decode_frame">try_decode_frame</a>;</code></div></li><li><div class="item-name" id="reexport.VstpFrameCodec"><code>pub use codec::<a class="struct" href="codec/struct.VstpFrameCodec.html" title="struct vstp_labs::codec::VstpFrameCodec">VstpFrameCodec</a>;</code></div></li></ul><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="mod" href="codec/index.html" title="mod vstp_labs::codec">codec</a></div></li><li><div class="item-name"><a class="mod" href="frame/index.html" title="mod vstp_labs::frame">frame</a></div></li><li><div class="item-name"><a class="mod" href="types/index.html" title="mod vstp_labs::types">types</a></div></li></ul></section></div></main></body></html>

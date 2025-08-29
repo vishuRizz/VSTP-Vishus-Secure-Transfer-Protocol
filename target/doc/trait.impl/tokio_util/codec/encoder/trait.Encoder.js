@@ -1,0 +1,4 @@
+(function() {var implementors = {
+"tokio_util":[],
+"vstp_labs":[["impl <a class=\"trait\" href=\"tokio_util/codec/encoder/trait.Encoder.html\" title=\"trait tokio_util::codec::encoder::Encoder\">Encoder</a>&lt;<a class=\"struct\" href=\"vstp_labs/types/struct.Frame.html\" title=\"struct vstp_labs::types::Frame\">Frame</a>&gt; for <a class=\"struct\" href=\"vstp_labs/codec/struct.VstpFrameCodec.html\" title=\"struct vstp_labs::codec::VstpFrameCodec\">VstpFrameCodec</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
