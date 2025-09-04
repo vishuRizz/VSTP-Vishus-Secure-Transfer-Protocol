@@ -1,6 +1,6 @@
 [package]
 name = "vstp"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Vishu Pratap <vishurizz0@gmail.com>"]
 description = "VSTP - Vishu's Secure Transfer Protocol: A fast, secure, and extensible binary protocol for TCP and UDP"
