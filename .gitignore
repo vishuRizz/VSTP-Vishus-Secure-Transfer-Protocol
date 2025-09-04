@@ -1,0 +1,60 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentation build
+/doc/
+
+# Coverage reports
+tarpaulin-report.html
+lcov.info
+
+# Profiling
+perf.data*
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Node.js (for future WASM bindings)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# WASM build artifacts
+/pkg/
+/wasm/pkg/
+
+# Test artifacts
+/test-results/
+/coverage/
+
+# Backup files
+*.bak
+*.backup
