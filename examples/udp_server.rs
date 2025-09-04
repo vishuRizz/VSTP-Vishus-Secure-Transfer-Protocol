@@ -5,7 +5,7 @@
 use std::error::Error;
 use std::net::SocketAddr;
 use tracing::info;
-use vstp_labs::{types::FrameType, udp::VstpUdpServer};
+use vstp::{types::FrameType, udp::VstpUdpServer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 /// Handle incoming frames
-async fn handle_frame(from_addr: SocketAddr, frame: vstp_labs::types::Frame) {
+async fn handle_frame(from_addr: SocketAddr, frame: vstp::types::Frame) {
     info!(
         "Received {:?} frame from {} with {} headers and {} bytes payload",
         frame.typ,

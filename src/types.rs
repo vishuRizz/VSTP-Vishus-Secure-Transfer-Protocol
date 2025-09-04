@@ -58,7 +58,6 @@ impl FrameType {
     }
 }
 
-/// Frame flags
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Flags: u8 {

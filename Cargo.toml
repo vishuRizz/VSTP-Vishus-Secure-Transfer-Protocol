@@ -1,7 +1,16 @@
 [package]
-name = "vstp-labs"
+name = "vstp"
 version = "0.1.0"
 edition = "2021"
+authors = ["Vishu Pratap <vishurizz0@gmail.com>"]
+description = "VSTP - Vishu's Secure Transfer Protocol: A fast, secure, and extensible binary protocol for TCP and UDP"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/vishurizz0/vstp-labs"
+homepage = "https://github.com/vishurizz0/vstp-labs"
+documentation = "https://docs.rs/vstp"
+readme = "README.md"
+keywords = ["protocol", "tcp", "udp", "networking", "binary", "secure", "transport"]
+categories = ["network-programming", "asynchronous"]
 
 [dependencies]
 bytes = "1.5"

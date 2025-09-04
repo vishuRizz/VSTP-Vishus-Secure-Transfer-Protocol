@@ -1,6 +1,6 @@
 use std::error::Error;
 use tracing::info;
-use vstp_labs::{
+use vstp::{
     tcp::VstpTcpServer,
     types::{Frame, FrameType, SessionId},
 };

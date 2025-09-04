@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::time::Duration;
 use tracing::info;
-use vstp_labs::{tcp::VstpTcpClient, types::FrameType};
+use vstp::{tcp::VstpTcpClient, types::FrameType};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

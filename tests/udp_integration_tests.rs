@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 use tokio::time::timeout;
-use vstp_labs::{udp::{VstpUdpClient, VstpUdpServer}, types::FrameType};
+use vstp::{udp::{VstpUdpClient, VstpUdpServer}, types::FrameType};
 
 #[tokio::test]
 async fn test_udp_client_server_communication() {
@@ -24,16 +24,16 @@ async fn test_udp_client_server_communication() {
     let client = VstpUdpClient::bind("127.0.0.1:0").await.unwrap();
 
     // Send HELLO frame
-    let hello_frame = vstp_labs::types::Frame::new(FrameType::Hello);
+    let hello_frame = vstp::Frame::new(FrameType::Hello);
     client.send(hello_frame, server_addr).await.unwrap();
 
     // Send DATA frame
-    let data_frame = vstp_labs::types::Frame::new(FrameType::Data)
+    let data_frame = vstp::Frame::new(FrameType::Data)
         .with_payload(b"Hello UDP!".to_vec());
     client.send(data_frame, server_addr).await.unwrap();
 
     // Send BYE frame
-    let bye_frame = vstp_labs::types::Frame::new(FrameType::Bye);
+    let bye_frame = vstp::Frame::new(FrameType::Bye);
     client.send(bye_frame, server_addr).await.unwrap();
 
     // Give server time to process
@@ -63,7 +63,7 @@ async fn test_udp_ack_reliability() {
     let mut client = VstpUdpClient::bind("127.0.0.1:0").await.unwrap();
 
     // Send DATA frame with ACK reliability
-    let data_frame = vstp_labs::types::Frame::new(FrameType::Data)
+    let data_frame = vstp::Frame::new(FrameType::Data)
         .with_payload(b"Reliable message!".to_vec());
     
     // This should succeed with ACK
@@ -96,7 +96,7 @@ async fn test_udp_fragmentation() {
 
     // Create a large payload that will require fragmentation
     let large_payload = vec![0x42u8; 2000]; // Larger than MAX_DATAGRAM_SIZE
-    let data_frame = vstp_labs::types::Frame::new(FrameType::Data)
+    let data_frame = vstp::Frame::new(FrameType::Data)
         .with_payload(large_payload);
 
     // Send the large frame (should be fragmented)
@@ -130,7 +130,7 @@ async fn test_udp_multiple_clients() {
     for i in 0..3 {
         let client = VstpUdpClient::bind("127.0.0.1:0").await.unwrap();
         let message = format!("Hello from client {}!", i);
-        let data_frame = vstp_labs::types::Frame::new(FrameType::Data)
+        let data_frame = vstp::Frame::new(FrameType::Data)
             .with_payload(message.as_bytes().to_vec());
         client.send(data_frame, server_addr).await.unwrap();
         clients.push(client);

@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 use tokio::time::timeout;
-use vstp_labs::{
+use vstp::{
     tcp::{VstpTcpClient, VstpTcpServer},
     udp::{VstpUdpClient, VstpUdpServer},
     types::FrameType,
@@ -41,10 +41,10 @@ async fn test_tcp_and_udp_side_by_side() {
 
     // Test UDP client
     let udp_client = VstpUdpClient::bind("127.0.0.1:0").await.unwrap();
-    let hello_frame = vstp_labs::types::Frame::new(FrameType::Hello);
+    let hello_frame = vstp::Frame::new(FrameType::Hello);
     udp_client.send(hello_frame, udp_server_addr).await.unwrap();
     
-    let data_frame = vstp_labs::types::Frame::new(FrameType::Data)
+    let data_frame = vstp::Frame::new(FrameType::Data)
         .with_payload(b"UDP message".to_vec());
     udp_client.send(data_frame, udp_server_addr).await.unwrap();
 
@@ -91,7 +91,7 @@ async fn test_transport_choice_functionality() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     let udp_client = VstpUdpClient::bind("127.0.0.1:0").await.unwrap();
-    let hello_frame = vstp_labs::types::Frame::new(FrameType::Hello);
+    let hello_frame = vstp::Frame::new(FrameType::Hello);
     udp_client.send(hello_frame, udp_addr).await.unwrap();
 
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -119,7 +119,7 @@ async fn test_udp_reliability_features() {
     let mut udp_client = VstpUdpClient::bind("127.0.0.1:0").await.unwrap();
 
     // Test ACK reliability
-    let reliable_frame = vstp_labs::types::Frame::new(FrameType::Data)
+    let reliable_frame = vstp::Frame::new(FrameType::Data)
         .with_payload(b"Reliable message".to_vec());
     
     let result = timeout(Duration::from_secs(3), udp_client.send_with_ack(reliable_frame, udp_addr)).await;
@@ -127,7 +127,7 @@ async fn test_udp_reliability_features() {
 
     // Test fragmentation with large payload
     let large_payload = vec![0x42u8; 2000];
-    let large_frame = vstp_labs::types::Frame::new(FrameType::Data)
+    let large_frame = vstp::Frame::new(FrameType::Data)
         .with_payload(large_payload);
     
     udp_client.send(large_frame, udp_addr).await.unwrap();

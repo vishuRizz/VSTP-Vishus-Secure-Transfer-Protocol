@@ -34,8 +34,10 @@ impl Default for UdpServerConfig {
 /// VSTP UDP Server
 pub struct VstpUdpServer {
     socket: UdpSocket,
+    #[allow(dead_code)]
     config: UdpServerConfig,
     reassembly: ReassemblyManager,
+    #[allow(dead_code)]
     next_session_id: Arc<Mutex<u128>>,
 }
 

@@ -10,7 +10,7 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use vstp_labs::{Frame, FrameType, Flags};
+//! use vstp::{Frame, FrameType, Flags};
 //!
 //! // Create a simple data frame
 //! let frame = Frame::new(FrameType::Data)
@@ -19,14 +19,14 @@
 //!     .with_flag(Flags::REQ_ACK);
 //!
 //! // Encode to bytes
-//! let encoded = vstp_labs::frame::encode_frame(&frame)?;
+//! let encoded = vstp::frame::encode_frame(&frame)?;
 //!
 //! // Decode from bytes
 //! let mut buf = bytes::BytesMut::from(&encoded[..]);
-//! let decoded = vstp_labs::frame::try_decode_frame(&mut buf, 1024)?.unwrap();
+//! let decoded = vstp::frame::try_decode_frame(&mut buf, 1024)?.unwrap();
 //!
 //! assert_eq!(frame, decoded);
-//! # Ok::<(), vstp_labs::VstpError>(())
+//! # Ok::<(), vstp::VstpError>(())
 //! ```
 //!
 //! ## Protocol Overview

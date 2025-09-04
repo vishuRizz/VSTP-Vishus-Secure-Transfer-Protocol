@@ -1,5 +1,5 @@
 use bytes::{BufMut, BytesMut};
-use vstp_labs::{encode_frame, try_decode_frame, Flags, Frame, FrameType, Header};
+use vstp::{encode_frame, try_decode_frame, Flags, Frame, FrameType, Header};
 
 #[test]
 fn test_basic_frame_roundtrip() {

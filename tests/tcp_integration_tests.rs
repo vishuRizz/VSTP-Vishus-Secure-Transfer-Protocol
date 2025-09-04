@@ -1,6 +1,6 @@
 use std::time::Duration;
 use tokio::time::timeout;
-use vstp_labs::{
+use vstp::{
     tcp::{VstpTcpClient, VstpTcpServer},
     types::{Frame, FrameType, SessionId},
 };

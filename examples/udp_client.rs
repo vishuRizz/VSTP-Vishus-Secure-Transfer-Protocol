@@ -5,7 +5,7 @@
 use std::error::Error;
 use std::time::Duration;
 use tracing::info;
-use vstp_labs::{udp::VstpUdpClient, types::FrameType};
+use vstp::{types::FrameType, udp::VstpUdpClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Send HELLO frame
     info!("Sending HELLO frame...");
-    let hello_frame = vstp_labs::types::Frame::new(FrameType::Hello);
+    let hello_frame = vstp::Frame::new(FrameType::Hello);
     client.send(hello_frame, server_addr).await?;
 
     // Wait a bit
@@ -34,8 +34,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Send DATA frame
     info!("Sending DATA frame...");
     let message = "Hello from VSTP UDP client!";
-    let data_frame = vstp_labs::types::Frame::new(FrameType::Data)
-        .with_payload(message.as_bytes().to_vec());
+    let data_frame =
+        vstp::Frame::new(FrameType::Data).with_payload(message.as_bytes().to_vec());
     client.send(data_frame, server_addr).await?;
 
     // Wait a bit
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Send DATA frame with ACK reliability
     info!("Sending DATA frame with ACK reliability...");
     let reliable_message = "This message requires ACK!";
-    let reliable_frame = vstp_labs::types::Frame::new(FrameType::Data)
+    let reliable_frame = vstp::Frame::new(FrameType::Data)
         .with_payload(reliable_message.as_bytes().to_vec());
     client.send_with_ack(reliable_frame, server_addr).await?;
 
@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Send PING frame
     info!("Sending PING frame...");
-    let ping_frame = vstp_labs::types::Frame::new(FrameType::Ping);
+    let ping_frame = vstp::Frame::new(FrameType::Ping);
     client.send(ping_frame, server_addr).await?;
 
     // Wait a bit
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Send BYE frame
     info!("Sending BYE frame...");
-    let bye_frame = vstp_labs::types::Frame::new(FrameType::Bye);
+    let bye_frame = vstp::Frame::new(FrameType::Bye);
     client.send(bye_frame, server_addr).await?;
 
     info!("Client example completed successfully!");
