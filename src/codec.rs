@@ -13,7 +13,7 @@ impl VstpFrameCodec {
     pub fn new(max_frame_size: usize) -> Self {
         Self { max_frame_size }
     }
-    
+
     pub fn default() -> Self {
         Self::new(8 * 1024 * 1024) // 8MB default
     }
@@ -41,39 +41,39 @@ impl Encoder<Frame> for VstpFrameCodec {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Frame, FrameType, Flags};
+    use crate::types::{Frame, FrameType};
 
     #[test]
     fn test_codec_roundtrip() {
         let mut codec = VstpFrameCodec::default();
         let mut buf = BytesMut::new();
-        
+
         let frame = Frame::new(FrameType::Data)
             .with_header("test", "value")
             .with_payload(b"hello".to_vec());
-        
+
         // Encode
         codec.encode(frame.clone(), &mut buf).unwrap();
-        
+
         // Decode
         let decoded = codec.decode(&mut buf).unwrap().unwrap();
-        
+
         assert_eq!(frame, decoded);
     }
-    
+
     #[test]
     fn test_codec_partial_decode() {
         let mut codec = VstpFrameCodec::default();
         let mut buf = BytesMut::new();
-        
+
         let frame = Frame::new(FrameType::Hello);
         let encoded = encode_frame(&frame).unwrap();
-        
+
         // Add partial data
         buf.put_slice(&encoded[..5]);
         let result = codec.decode(&mut buf).unwrap();
         assert!(result.is_none());
-        
+
         // Add remaining data
         buf.put_slice(&encoded[5..]);
         let decoded = codec.decode(&mut buf).unwrap().unwrap();

@@ -132,4 +132,7 @@ pub enum VstpError {
 
     #[error("Frame too large: {size} bytes exceeds limit of {limit}")]
     FrameTooLarge { size: usize, limit: usize },
+
+    #[error("Timeout: {0}")]
+    Timeout(String),
 }

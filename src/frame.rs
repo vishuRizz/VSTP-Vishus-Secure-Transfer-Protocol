@@ -1,4 +1,4 @@
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use bytes::{BufMut, Bytes, BytesMut};
 use crc_any::CRC;
 
