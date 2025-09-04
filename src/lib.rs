@@ -78,6 +78,7 @@
 pub mod types;
 pub mod frame;
 pub mod codec;
+pub mod tcp;
 
 // Re-export main types for convenience
 pub use types::{
