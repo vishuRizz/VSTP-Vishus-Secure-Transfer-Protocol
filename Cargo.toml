@@ -9,7 +9,7 @@ repository = "https://github.com/vishuRizz/VSTP-Vishus-Secure-Transfer-Protocol"
 homepage = "https://github.com/vishuRizz/VSTP-Vishus-Secure-Transfer-Protocol"
 documentation = "https://docs.rs/vstp"
 readme = "README.md"
-keywords = ["protocol", "tcp", "udp", "networking", "binary", "secure", "transport"]
+keywords = ["protocol", "tcp", "udp", "networking", "binary"]
 categories = ["network-programming", "asynchronous"]
 
 [dependencies]
