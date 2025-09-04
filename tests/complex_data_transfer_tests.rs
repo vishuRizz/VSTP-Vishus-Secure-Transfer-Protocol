@@ -236,25 +236,38 @@ async fn test_multiple_clients_complex_data() {
 
     // Verify all frames were received
     let frames = received_frames.lock().await;
-    assert!(frames.len() >= 4, "At least 4 clients should have sent frames (got {})", frames.len());
+    assert!(
+        frames.len() >= 4,
+        "At least 4 clients should have sent frames (got {})",
+        frames.len()
+    );
 
     // Verify different data types (if available)
     if let Some(json_frame) = frames.iter().find(|(_, f)| {
-        f.headers.iter().any(|h| h.key == b"data-type" && h.value == b"json")
+        f.headers
+            .iter()
+            .any(|h| h.key == b"data-type" && h.value == b"json")
     }) {
         assert!(json_frame.1.payload.starts_with(b"{\"message\""));
         println!("✅ JSON frame verified");
     }
 
     if let Some(binary_frame) = frames.iter().find(|(_, f)| {
-        f.headers.iter().any(|h| h.key == b"data-type" && h.value == b"binary")
+        f.headers
+            .iter()
+            .any(|h| h.key == b"data-type" && h.value == b"binary")
     }) {
-        assert_eq!(binary_frame.1.payload, vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+        assert_eq!(
+            binary_frame.1.payload,
+            vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+        );
         println!("✅ Binary frame verified");
     }
 
     if let Some(large_frame) = frames.iter().find(|(_, f)| {
-        f.headers.iter().any(|h| h.key == b"data-type" && h.value == b"large-binary")
+        f.headers
+            .iter()
+            .any(|h| h.key == b"data-type" && h.value == b"large-binary")
     }) {
         assert_eq!(large_frame.1.payload.len(), 5000);
         assert!(large_frame.1.payload.iter().all(|&b| b == 0xAA));
@@ -287,8 +300,7 @@ async fn test_crc_integrity_checking() {
                     frames.push((addr, frame));
                     println!(
                         "🔒 CRC-protected frame received from {}: {} bytes",
-                        addr,
-                        payload_len
+                        addr, payload_len
                     );
                 }
             })
