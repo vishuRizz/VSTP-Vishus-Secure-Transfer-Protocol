@@ -34,8 +34,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Send DATA frame
     info!("Sending DATA frame...");
     let message = "Hello from VSTP UDP client!";
-    let data_frame =
-        vstp::Frame::new(FrameType::Data).with_payload(message.as_bytes().to_vec());
+    let data_frame = vstp::Frame::new(FrameType::Data).with_payload(message.as_bytes().to_vec());
     client.send(data_frame, server_addr).await?;
 
     // Wait a bit
@@ -44,8 +43,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Send DATA frame with ACK reliability
     info!("Sending DATA frame with ACK reliability...");
     let reliable_message = "This message requires ACK!";
-    let reliable_frame = vstp::Frame::new(FrameType::Data)
-        .with_payload(reliable_message.as_bytes().to_vec());
+    let reliable_frame =
+        vstp::Frame::new(FrameType::Data).with_payload(reliable_message.as_bytes().to_vec());
     client.send_with_ack(reliable_frame, server_addr).await?;
 
     // Wait a bit
