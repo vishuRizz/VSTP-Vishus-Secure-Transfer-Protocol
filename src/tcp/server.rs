@@ -1,13 +1,40 @@
+use futures::SinkExt;
 use std::future::Future;
 use std::sync::Arc;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use tokio_util::codec::Framed;
-use tracing::{error, info};
+use tracing::info;
 
 use crate::types::{Frame, SessionId, VstpError};
 use crate::VstpFrameCodec as Codec;
+
+/// TCP connection handler
+pub struct VstpTcpConnection {
+    framed: Framed<TcpStream, Codec>,
+    session_id: SessionId,
+    peer_addr: std::net::SocketAddr,
+}
+
+impl VstpTcpConnection {
+    /// Send a frame to the client
+    pub async fn send(&mut self, frame: Frame) -> Result<(), VstpError> {
+        self.framed.send(frame).await?;
+        Ok(())
+    }
+
+    /// Receive a frame from the client
+    pub async fn recv(&mut self) -> Result<Option<Frame>, VstpError> {
+        let frame = self.framed.next().await.transpose()?;
+        Ok(frame)
+    }
+
+    /// Get the peer address
+    pub fn peer_addr(&self) -> std::net::SocketAddr {
+        self.peer_addr
+    }
+}
 
 /// TCP server for VSTP protocol
 pub struct VstpTcpServer {
@@ -17,13 +44,31 @@ pub struct VstpTcpServer {
 
 impl VstpTcpServer {
     /// Bind to the specified address
-    pub async fn bind(addr: &str) -> Result<Self, VstpError> {
+    pub async fn bind(addr: impl ToSocketAddrs) -> Result<Self, VstpError> {
         let listener = TcpListener::bind(addr).await?;
-        info!("VSTP TCP server bound to {}", addr);
+        info!("VSTP TCP server bound to {}", listener.local_addr()?);
 
         Ok(Self {
             listener,
             next_session_id: Arc::new(Mutex::new(1)),
+        })
+    }
+
+    /// Accept a new client connection
+    pub async fn accept(&self) -> Result<VstpTcpConnection, VstpError> {
+        let (socket, addr) = self.listener.accept().await?;
+        let session_id = {
+            let mut id_guard = self.next_session_id.lock().await;
+            *id_guard += 1;
+            *id_guard
+        };
+
+        info!("New connection from {} (session {})", addr, session_id);
+
+        Ok(VstpTcpConnection {
+            framed: Framed::new(socket, Codec::default()),
+            session_id,
+            peer_addr: addr,
         })
     }
 
@@ -41,70 +86,22 @@ impl VstpTcpServer {
         info!("VSTP TCP server starting...");
 
         loop {
-            match self.listener.accept().await {
-                Ok((socket, addr)) => {
-                    info!("New connection from {}", addr);
-
+            match self.accept().await {
+                Ok(mut conn) => {
                     let handler = handler.clone();
-                    let next_session_id = self.next_session_id.clone();
+                    let session_id = conn.session_id;
 
                     tokio::spawn(async move {
-                        if let Err(e) =
-                            Self::handle_connection(socket, handler, next_session_id).await
-                        {
-                            error!("Connection handler error: {}", e);
+                        while let Ok(Some(frame)) = conn.recv().await {
+                            handler(session_id, frame).await;
                         }
+                        info!("Session {} ended", session_id);
                     });
                 }
                 Err(e) => {
-                    error!("Failed to accept connection: {}", e);
+                    tracing::error!("Failed to accept connection: {}", e);
                 }
             }
         }
-    }
-
-    /// Handle a single client connection
-    async fn handle_connection<F, Fut>(
-        socket: TcpStream,
-        handler: F,
-        next_session_id: Arc<Mutex<u128>>,
-    ) -> Result<(), VstpError>
-    where
-        F: Fn(SessionId, Frame) -> Fut + Send + Sync + Clone + 'static,
-        Fut: Future<Output = ()> + Send,
-    {
-        // Generate session ID
-        let session_id = {
-            let mut id_guard = next_session_id.lock().await;
-            *id_guard += 1;
-            *id_guard
-        };
-
-        info!("Starting session {}", session_id);
-
-        // Create framed stream
-        let mut framed = Framed::new(socket, Codec::default());
-
-        // Handle incoming frames
-        loop {
-            match framed.try_next().await {
-                Ok(Some(frame)) => {
-                    info!("Session {} received frame: {:?}", session_id, frame.typ);
-                    // Call user handler
-                    handler(session_id, frame).await;
-                }
-                Ok(None) => {
-                    info!("Session {} connection closed", session_id);
-                    break;
-                }
-                Err(e) => {
-                    error!("Session {} frame error: {}", session_id, e);
-                    break;
-                }
-            }
-        }
-
-        info!("Session {} ended", session_id);
-        Ok(())
     }
 }

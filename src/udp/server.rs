@@ -1,12 +1,10 @@
-//! UDP server implementation for VSTP
-
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
-use crate::frame::try_decode_frame;
+use crate::frame::{encode_frame, try_decode_frame};
 use crate::types::{Flags, Frame, FrameType, Header, VstpError, VSTP_VERSION};
 use crate::udp::reassembly::{extract_fragment_info, ReassemblyManager, MAX_DATAGRAM_SIZE};
 
@@ -34,10 +32,8 @@ impl Default for UdpServerConfig {
 /// VSTP UDP Server
 pub struct VstpUdpServer {
     socket: UdpSocket,
-    #[allow(dead_code)]
     config: UdpServerConfig,
     reassembly: ReassemblyManager,
-    #[allow(dead_code)]
     next_session_id: Arc<Mutex<u128>>,
 }
 
@@ -73,109 +69,64 @@ impl VstpUdpServer {
         self.socket.local_addr().map_err(|e| VstpError::Io(e))
     }
 
-    /// Run the server with a frame handler
-    pub async fn run<F, Fut>(self, handler: F) -> Result<(), VstpError>
-    where
-        F: Fn(SocketAddr, Frame) -> Fut + Send + Sync + Clone + 'static,
-        Fut: std::future::Future<Output = ()> + Send,
-    {
-        info!("VSTP UDP server starting...");
+    /// Send a frame to a specific address
+    pub async fn send(&self, frame: Frame, dest: SocketAddr) -> Result<(), VstpError> {
+        let encoded = encode_frame(&frame)?;
+        self.socket.send_to(&encoded, dest).await?;
+        Ok(())
+    }
 
+    /// Receive a frame from any client
+    pub async fn recv(&self) -> Result<(Frame, SocketAddr), VstpError> {
         let mut buf = vec![0u8; MAX_DATAGRAM_SIZE * 2]; // Extra space for headers
 
         loop {
-            match self.socket.recv_from(&mut buf).await {
-                Ok((len, from_addr)) => {
-                    let data = &buf[..len];
-                    debug!("Received {} bytes from {}", len, from_addr);
+            let (len, from_addr) = self.socket.recv_from(&mut buf).await?;
+            let data = &buf[..len];
+            debug!("Received {} bytes from {}", len, from_addr);
 
-                    // Handle the frame
-                    if let Err(e) = self.handle_frame(from_addr, data, &handler).await {
-                        error!("Error handling frame from {}: {}", from_addr, e);
+            // Try to decode the frame
+            let mut buf = bytes::BytesMut::from(data);
+            match try_decode_frame(&mut buf, 65536) {
+                Ok(Some(frame)) => {
+                    // Check if this is a fragmented frame
+                    if let Some(fragment) = extract_fragment_info(&frame) {
+                        // Handle fragmentation
+                        if let Some(assembled_data) = self.reassembly.add_fragment(from_addr, fragment).await? {
+                            // Reassemble the complete frame
+                            let mut complete_frame = frame;
+                            complete_frame.payload = assembled_data;
+                            // Remove fragment headers
+                            complete_frame.headers.retain(|h| {
+                                h.key != b"frag-id" && h.key != b"frag-index" && h.key != b"frag-total"
+                            });
+
+                            // Send ACK if requested
+                            if complete_frame.flags.contains(Flags::REQ_ACK) {
+                                if let Some(msg_id) = self.extract_msg_id(&complete_frame) {
+                                    let _ = self.send_ack(msg_id, from_addr).await;
+                                }
+                            }
+
+                            return Ok((complete_frame, from_addr));
+                        }
+                        // Fragment received, continue waiting for more
+                        continue;
+                    } else {
+                        // Send ACK if requested
+                        if frame.flags.contains(Flags::REQ_ACK) {
+                            if let Some(msg_id) = self.extract_msg_id(&frame) {
+                                let _ = self.send_ack(msg_id, from_addr).await;
+                            }
+                        }
+
+                        return Ok((frame, from_addr));
                     }
                 }
-                Err(e) => {
-                    error!("Error receiving UDP packet: {}", e);
-                }
+                Ok(None) => continue, // Incomplete frame
+                Err(_) => continue,   // Invalid frame
             }
         }
-    }
-
-    /// Handle a received frame
-    async fn handle_frame<F, Fut>(
-        &self,
-        from_addr: SocketAddr,
-        data: &[u8],
-        handler: &F,
-    ) -> Result<(), VstpError>
-    where
-        F: Fn(SocketAddr, Frame) -> Fut + Send + Sync + Clone,
-        Fut: std::future::Future<Output = ()> + Send,
-    {
-        // Try to decode the frame
-        let mut buf = bytes::BytesMut::from(data);
-        let frame = match try_decode_frame(&mut buf, 65536) {
-            Ok(Some(frame)) => frame,
-            Ok(None) => {
-                warn!("Incomplete frame received from {}", from_addr);
-                return Ok(());
-            }
-            Err(e) => {
-                warn!("Failed to decode frame from {}: {}", from_addr, e);
-                return Ok(());
-            }
-        };
-
-        // Check if this is a fragmented frame
-        if let Some(fragment) = extract_fragment_info(&frame) {
-            // Handle fragmentation
-            if let Some(assembled_data) = self.reassembly.add_fragment(from_addr, fragment).await? {
-                // Reassemble the complete frame
-                let mut complete_frame = frame;
-                complete_frame.payload = assembled_data;
-                // Remove fragment headers
-                complete_frame.headers.retain(|h| {
-                    h.key != b"frag-id" && h.key != b"frag-index" && h.key != b"frag-total"
-                });
-
-                // Handle the complete frame
-                self.process_frame(from_addr, complete_frame, handler)
-                    .await?;
-            } else {
-                debug!("Fragment received from {}, waiting for more", from_addr);
-            }
-        } else {
-            // Handle the complete frame
-            self.process_frame(from_addr, frame, handler).await?;
-        }
-
-        Ok(())
-    }
-
-    /// Process a complete frame
-    async fn process_frame<F, Fut>(
-        &self,
-        from_addr: SocketAddr,
-        frame: Frame,
-        handler: &F,
-    ) -> Result<(), VstpError>
-    where
-        F: Fn(SocketAddr, Frame) -> Fut + Send + Sync + Clone,
-        Fut: std::future::Future<Output = ()> + Send,
-    {
-        // Check if this frame requires an ACK
-        if frame.flags.contains(Flags::REQ_ACK) {
-            if let Some(msg_id) = self.extract_msg_id(&frame) {
-                // Send ACK
-                if let Err(e) = self.send_ack(msg_id, from_addr).await {
-                    warn!("Failed to send ACK to {}: {}", from_addr, e);
-                }
-            }
-        }
-
-        // Call the user handler
-        handler(from_addr, frame).await;
-        Ok(())
     }
 
     /// Extract message ID from frame headers
@@ -203,10 +154,7 @@ impl VstpUdpServer {
             payload: Vec::new(),
         };
 
-        let encoded = crate::frame::encode_frame(&ack_frame)?;
-        self.socket.send_to(&encoded, dest).await?;
-        debug!("Sent ACK for message {} to {}", msg_id, dest);
-        Ok(())
+        self.send(ack_frame, dest).await
     }
 
     /// Get the number of active reassembly sessions

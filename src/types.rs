@@ -103,6 +103,21 @@ impl Frame {
         self.flags |= flag;
         self
     }
+
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
+
+    pub fn frame_type(&self) -> FrameType {
+        self.typ
+    }
+
+    pub fn get_header(&self, key: &str) -> Option<&str> {
+        let key_bytes = key.as_bytes();
+        self.headers.iter()
+            .find(|h| h.key == key_bytes)
+            .and_then(|h| std::str::from_utf8(&h.value).ok())
+    }
 }
 
 /// VSTP error types
@@ -132,6 +147,24 @@ pub enum VstpError {
     #[error("Frame too large: {size} bytes exceeds limit of {limit}")]
     FrameTooLarge { size: usize, limit: usize },
 
-    #[error("Timeout: {0}")]
-    Timeout(String),
+    #[error("Operation timed out")]
+    Timeout,
+
+    #[error("Invalid address")]
+    InvalidAddress,
+
+    #[error("Serialization error")]
+    SerializationError,
+
+    #[error("Deserialization error")]
+    DeserializationError,
+
+    #[error("Unexpected frame type")]
+    UnexpectedFrameType,
+
+    #[error("Connection closed")]
+    ConnectionClosed,
+
+    #[error("Server error: {0}")]
+    ServerError(String),
 }

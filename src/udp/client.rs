@@ -1,14 +1,15 @@
-//! UDP client implementation for VSTP
-
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 use tokio::time::timeout;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
-use crate::frame::encode_frame;
-use crate::types::{Flags, Frame, FrameType, Header, VstpError, VSTP_VERSION};
-use crate::udp::reassembly::{fragment_payload, ReassemblyManager, MAX_DATAGRAM_SIZE};
+use crate::frame::{encode_frame, try_decode_frame};
+use crate::types::{Flags, Frame, FrameType, Header, VstpError};
+use crate::udp::reassembly::{
+    fragment_payload, extract_fragment_info, add_fragment_headers,
+    ReassemblyManager, MAX_DATAGRAM_SIZE,
+};
 
 /// Configuration for UDP client
 #[derive(Debug, Clone)]
@@ -116,9 +117,9 @@ impl VstpUdpClient {
                     debug!("Received ACK for message {} from {}", msg_id, dest);
                     return Ok(());
                 }
-                Err(_e) if attempt < self.config.max_retries => {
+                Err(_) if attempt < self.config.max_retries => {
                     let delay = self.calculate_retry_delay(attempt);
-                    warn!(
+                    debug!(
                         "ACK timeout for message {} (attempt {}/{}), retrying in {:?}",
                         msg_id,
                         attempt + 1,
@@ -128,7 +129,7 @@ impl VstpUdpClient {
                     tokio::time::sleep(delay).await;
                 }
                 Err(e) => {
-                    error!(
+                    debug!(
                         "Failed to receive ACK for message {} after {} attempts: {}",
                         msg_id,
                         self.config.max_retries + 1,
@@ -139,7 +140,7 @@ impl VstpUdpClient {
             }
         }
 
-        Ok(())
+        Err(VstpError::Timeout)
     }
 
     /// Receive a frame from any source
@@ -154,10 +155,10 @@ impl VstpUdpClient {
 
             // Try to decode as a complete frame first
             let mut buf = bytes::BytesMut::from(data);
-            match crate::frame::try_decode_frame(&mut buf, 65536) {
+            match try_decode_frame(&mut buf, 65536) {
                 Ok(Some(frame)) => {
                     // Check if this is a fragmented frame
-                    if let Some(fragment) = crate::udp::reassembly::extract_fragment_info(&frame) {
+                    if let Some(fragment) = extract_fragment_info(&frame) {
                         // Handle fragmentation
                         if let Some(assembled_data) =
                             self.reassembly.add_fragment(from_addr, fragment).await?
@@ -185,8 +186,8 @@ impl VstpUdpClient {
                     // Incomplete frame, continue waiting
                     continue;
                 }
-                Err(e) => {
-                    warn!("Failed to decode frame from {}: {}", from_addr, e);
+                Err(_) => {
+                    // Invalid frame, continue waiting
                     continue;
                 }
             }
@@ -208,7 +209,7 @@ impl VstpUdpClient {
 
         for fragment in fragments {
             let mut frag_frame = frame.clone();
-            crate::udp::reassembly::add_fragment_headers(&mut frag_frame, &fragment);
+            add_fragment_headers(&mut frag_frame, &fragment);
             frag_frame.flags.insert(Flags::FRAG);
 
             let frag_encoded = encode_frame(&frag_frame)?;
@@ -250,43 +251,19 @@ impl VstpUdpClient {
                         }
                     }
                 }
-                Ok(Ok((_, _))) => {
-                    // Frame from different address, ignore
-                    continue;
-                }
-                Ok(Err(e)) => {
-                    return Err(e);
-                }
-                Err(_) => {
-                    // Timeout, continue waiting
-                    continue;
-                }
+                Ok(Ok(_)) => continue,    // Frame from different address
+                Ok(Err(e)) => return Err(e),
+                Err(_) => continue,       // Timeout, continue waiting
             }
         }
 
-        Err(VstpError::Timeout("ACK timeout".to_string()))
+        Err(VstpError::Timeout)
     }
 
     /// Calculate retry delay with exponential backoff
     fn calculate_retry_delay(&self, attempt: usize) -> Duration {
         let delay = self.config.retry_delay.as_millis() as u64 * (2_u64.pow(attempt as u32));
         Duration::from_millis(delay.min(self.config.max_retry_delay.as_millis() as u64))
-    }
-
-    /// Send an ACK for a received message
-    pub async fn send_ack(&self, msg_id: u64, dest: SocketAddr) -> Result<(), VstpError> {
-        let ack_frame = Frame {
-            version: VSTP_VERSION,
-            typ: FrameType::Ack,
-            flags: Flags::empty(),
-            headers: vec![Header {
-                key: b"msg-id".to_vec(),
-                value: msg_id.to_string().into_bytes(),
-            }],
-            payload: Vec::new(),
-        };
-
-        self.send(ack_frame, dest).await
     }
 
     /// Get the local address this client is bound to

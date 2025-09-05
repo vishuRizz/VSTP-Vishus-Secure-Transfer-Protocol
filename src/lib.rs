@@ -10,29 +10,37 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use vstp::{Frame, FrameType, Flags};
+//! use vstp::easy::{VstpClient, VstpServer};
+//! use serde::{Serialize, Deserialize};
 //!
-//! // Create a simple data frame
-//! let frame = Frame::new(FrameType::Data)
-//!     .with_header("content-type", "text/plain")
-//!     .with_payload(b"Hello, VSTP!".to_vec())
-//!     .with_flag(Flags::REQ_ACK);
+//! #[derive(Serialize, Deserialize)]
+//! struct Message {
+//!     content: String,
+//! }
 //!
-//! // Encode to bytes
-//! let encoded = vstp::frame::encode_frame(&frame)?;
+//! // Start a TCP server
+//! let server = VstpServer::bind_tcp("127.0.0.1:8080").await?;
+//! tokio::spawn(async move {
+//!     server.serve(|msg: Message| async move {
+//!         println!("Received: {}", msg.content);
+//!         Ok(msg) // Echo the message back
+//!     }).await
+//! });
 //!
-//! // Decode from bytes
-//! let mut buf = bytes::BytesMut::from(&encoded[..]);
-//! let decoded = vstp::frame::try_decode_frame(&mut buf, 1024)?.unwrap();
+//! // Connect a client
+//! let mut client = VstpClient::connect_tcp("127.0.0.1:8080").await?;
 //!
-//! assert_eq!(frame, decoded);
+//! // Send a message
+//! let msg = Message { content: "Hello, VSTP!".to_string() };
+//! client.send(msg).await?;
+//!
+//! // Receive the response
+//! let response: Message = client.receive().await?;
+//! println!("Got response: {}", response.content);
 //! # Ok::<(), vstp::VstpError>(())
 //! ```
 //!
 //! ## Protocol Overview
-//!
-//! VSTP frames have the following wire format:
-//!
 //!
 //! VSTP frames have the following wire format:
 //!
@@ -76,6 +84,7 @@
 //! | 0x08 | ERR     | Both            | Error frame                   |
 
 pub mod codec;
+pub mod easy;
 pub mod frame;
 pub mod tcp;
 pub mod types;
@@ -90,3 +99,6 @@ pub use frame::{encode_frame, try_decode_frame};
 // Re-export TCP and UDP modules
 pub use tcp::{VstpTcpClient, VstpTcpServer};
 pub use udp::{VstpUdpClient, VstpUdpServer};
+
+// Re-export easy-to-use API
+pub use easy::{VstpClient, VstpServer};

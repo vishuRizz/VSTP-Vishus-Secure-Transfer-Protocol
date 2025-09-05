@@ -1,6 +1,6 @@
 [package]
 name = "vstp"
-version = "0.1.1"
+version = "0.2.1"
 edition = "2021"
 authors = ["Vishu Pratap <vishurizz0@gmail.com>"]
 description = "VSTP - Vishu's Secure Transfer Protocol: A fast, secure, and extensible binary protocol for TCP and UDP"
@@ -24,6 +24,9 @@ tokio-stream = "0.1"
 tracing = "0.1"
 futures = "0.3"
 tracing-subscriber = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [dev-dependencies]
 rand = "0.8"
+tokio-test = "0.4"
