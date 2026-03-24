@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::future::Future;
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::frame::{encode_frame, try_decode_frame};
 use crate::types::{Flags, Frame, FrameType, Header, VstpError, VSTP_VERSION};
@@ -160,5 +161,27 @@ impl VstpUdpServer {
     /// Get the number of active reassembly sessions
     pub async fn reassembly_session_count(&self) -> usize {
         self.reassembly.session_count().await
+    }
+
+    /// Run the UDP server with a frame handler.
+    pub async fn run<F, Fut>(self, handler: F) -> Result<(), VstpError>
+    where
+        F: Fn(SocketAddr, Frame) -> Fut + Send + Sync + Clone + 'static,
+        Fut: Future<Output = ()> + Send,
+    {
+        info!("VSTP UDP server starting...");
+        loop {
+            match self.recv().await {
+                Ok((frame, addr)) => {
+                    let h = handler.clone();
+                    tokio::spawn(async move {
+                        h(addr, frame).await;
+                    });
+                }
+                Err(e) => {
+                    warn!("UDP receive failed: {}", e);
+                }
+            }
+        }
     }
 }

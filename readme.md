@@ -224,6 +224,40 @@ let config = UdpConfig {
 let client = VstpUdpClient::bind_with_config("127.0.0.1:0", config).await?;
 ```
 
+### **Auto TCP/UDP Switching (Adaptive)**
+```rust
+use std::time::Duration;
+use vstp::easy::{AutoSwitchConfig, VstpClient, VstpServer};
+
+let server = VstpServer::bind_auto("127.0.0.1:6969").await?;
+tokio::spawn(async move {
+    server
+        .serve(|msg: String| async move { Ok(msg) })
+        .await
+});
+
+let auto_cfg = AutoSwitchConfig {
+    probe_attempts: 2,
+    probe_timeout: Duration::from_millis(500),
+    switch_cooldown: Duration::from_secs(3),
+    min_dwell_time: Duration::from_secs(2),
+    consecutive_failures_threshold: 3,
+    min_score_margin_ms: 5.0,
+    ack_timeout_penalty_ms: 25.0,
+    io_error_penalty_ms: 35.0,
+    peer_preference_ttl: Duration::from_secs(120),
+};
+
+let client = VstpClient::connect_auto_with_config("127.0.0.1:6969", auto_cfg).await?;
+client.send("auto mode".to_string()).await?;
+```
+
+Auto mode behavior:
+- Performs startup probes for TCP and UDP, then chooses the better baseline.
+- Tracks rolling transport health using success/failure/timeout and moving RTT.
+- Uses cooldown + minimum dwell time to avoid switch flapping.
+- Falls back to the alternate transport on burst failures.
+
 ## 📊 **Performance Benchmarks**
 
 | Feature | VSTP | HTTP/2 | gRPC | Raw TCP |

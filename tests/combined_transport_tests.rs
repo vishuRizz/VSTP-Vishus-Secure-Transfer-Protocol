@@ -6,6 +6,7 @@ use vstp::{
     tcp::{VstpTcpClient, VstpTcpServer},
     udp::{VstpUdpClient, VstpUdpServer},
     types::FrameType,
+    easy::{AutoSwitchConfig, VstpClient, VstpServer},
 };
 
 #[tokio::test]
@@ -135,4 +136,50 @@ async fn test_udp_reliability_features() {
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     udp_handle.abort();
+}
+
+#[tokio::test]
+async fn test_auto_mode_adaptive_startup_with_udp() {
+    let server = VstpServer::bind_udp("127.0.0.1:8091").await.unwrap();
+    tokio::spawn(async move {
+        server
+            .serve(|msg: String| async move { Ok(msg) })
+            .await
+            .unwrap();
+    });
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let mut cfg = AutoSwitchConfig::default();
+    cfg.probe_attempts = 1;
+    cfg.probe_timeout = Duration::from_millis(300);
+    let client = VstpClient::connect_auto_with_config("127.0.0.1:8091", cfg)
+        .await
+        .unwrap();
+
+    client.send("auto-start".to_string()).await.unwrap();
+    let response: String = client.receive().await.unwrap();
+    assert_eq!(response, "auto-start");
+}
+
+#[tokio::test]
+async fn test_auto_server_bind_and_serve() {
+    let server = VstpServer::bind_auto("127.0.0.1:8092").await.unwrap();
+    tokio::spawn(async move {
+        server
+            .serve(|msg: String| async move { Ok(format!("echo:{msg}")) })
+            .await
+            .unwrap();
+    });
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    let tcp_client = VstpClient::connect_tcp("127.0.0.1:8092").await.unwrap();
+    tcp_client.send("tcp".to_string()).await.unwrap();
+    let tcp_response: String = tcp_client.receive().await.unwrap();
+    assert_eq!(tcp_response, "echo:tcp");
+
+    let udp_client = VstpClient::connect_udp("127.0.0.1:8092").await.unwrap();
+    udp_client.send("udp".to_string()).await.unwrap();
+    let udp_response: String = udp_client.receive().await.unwrap();
+    assert_eq!(udp_response, "echo:udp");
 }
