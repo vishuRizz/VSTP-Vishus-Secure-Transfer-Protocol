@@ -9,10 +9,36 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_PREFERRED_MARGIN_MS: f64 = 5.0;
 const DEFAULT_PEER_PREF_TTL: Duration = Duration::from_secs(120);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TransportKind {
     Tcp,
     Udp,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct AutoFaultInjection {
+    pub tcp_delay_ms: u64,
+    pub udp_delay_ms: u64,
+    pub tcp_fail_every_n: u64,
+    pub udp_fail_every_n: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AutoRuntimeStatus {
+    pub active_transport: TransportKind,
+    pub tcp_available: bool,
+    pub udp_available: bool,
+    pub tcp_score_ms: f64,
+    pub udp_score_ms: f64,
+    pub tcp_success_count: u64,
+    pub udp_success_count: u64,
+    pub tcp_failure_count: u64,
+    pub udp_failure_count: u64,
+    pub tcp_timeout_count: u64,
+    pub udp_timeout_count: u64,
+    pub tcp_ema_rtt_ms: Option<f64>,
+    pub udp_ema_rtt_ms: Option<f64>,
+    pub fault_injection: AutoFaultInjection,
 }
 
 #[derive(Debug, Clone)]
@@ -137,6 +163,8 @@ struct AutoClientInner {
     udp: Option<crate::udp::VstpUdpClient>,
     state: AutoClientState,
     cfg: AutoSwitchConfig,
+    fault: AutoFaultInjection,
+    op_counter: u64,
 }
 
 impl VstpClient {
@@ -272,6 +300,8 @@ impl VstpClient {
                 udp: udp_client_opt,
                 state: AutoClientState::new(initial),
                 cfg,
+                fault: AutoFaultInjection::default(),
+                op_counter: 0,
             }))),
             server_addr: parsed_addr,
             timeout: DEFAULT_TIMEOUT,
@@ -281,6 +311,49 @@ impl VstpClient {
     /// Set operation timeout
     pub fn set_timeout(&mut self, timeout: Duration) {
         self.timeout = timeout;
+    }
+
+    /// Update runtime fault injection values for auto mode.
+    pub async fn set_auto_fault_injection(
+        &self,
+        fault: AutoFaultInjection,
+    ) -> Result<(), VstpError> {
+        let mut inner = self.inner.lock().await;
+        match &mut *inner {
+            ClientType::Auto(auto) => {
+                auto.fault = fault;
+                Ok(())
+            }
+            _ => Err(VstpError::Protocol(
+                "Fault injection is available only in auto mode".to_string(),
+            )),
+        }
+    }
+
+    /// Inspect current auto-transport runtime status.
+    pub async fn auto_status(&self) -> Result<AutoRuntimeStatus, VstpError> {
+        let inner = self.inner.lock().await;
+        match &*inner {
+            ClientType::Auto(auto) => Ok(AutoRuntimeStatus {
+                active_transport: auto.state.active,
+                tcp_available: auto.tcp.is_some(),
+                udp_available: auto.udp.is_some(),
+                tcp_score_ms: auto.state.tcp_stats.score_ms(&auto.cfg),
+                udp_score_ms: auto.state.udp_stats.score_ms(&auto.cfg),
+                tcp_success_count: auto.state.tcp_stats.success_count,
+                udp_success_count: auto.state.udp_stats.success_count,
+                tcp_failure_count: auto.state.tcp_stats.failure_count,
+                udp_failure_count: auto.state.udp_stats.failure_count,
+                tcp_timeout_count: auto.state.tcp_stats.timeout_count,
+                udp_timeout_count: auto.state.udp_stats.timeout_count,
+                tcp_ema_rtt_ms: auto.state.tcp_stats.ema_rtt_ms,
+                udp_ema_rtt_ms: auto.state.udp_stats.ema_rtt_ms,
+                fault_injection: auto.fault.clone(),
+            }),
+            _ => Err(VstpError::Protocol(
+                "Status is available only in auto mode".to_string(),
+            )),
+        }
     }
 
     /// Send any serializable data to the server
@@ -528,6 +601,8 @@ impl VstpClient {
         frame: Frame,
         require_ack: bool,
     ) -> Result<Duration, VstpError> {
+        auto.op_counter = auto.op_counter.saturating_add(1);
+        self.apply_fault(transport, auto).await?;
         let start = Instant::now();
         match transport {
             TransportKind::Tcp => {
@@ -579,6 +654,8 @@ impl VstpClient {
         transport: TransportKind,
         auto: &mut AutoClientInner,
     ) -> Result<(Frame, Duration), VstpError> {
+        auto.op_counter = auto.op_counter.saturating_add(1);
+        self.apply_fault(transport, auto).await?;
         let start = Instant::now();
         let frame = match transport {
             TransportKind::Tcp => {
@@ -603,6 +680,24 @@ impl VstpClient {
             }
         };
         Ok((frame, start.elapsed()))
+    }
+
+    async fn apply_fault(
+        &self,
+        transport: TransportKind,
+        auto: &AutoClientInner,
+    ) -> Result<(), VstpError> {
+        let (delay_ms, fail_every_n) = match transport {
+            TransportKind::Tcp => (auto.fault.tcp_delay_ms, auto.fault.tcp_fail_every_n),
+            TransportKind::Udp => (auto.fault.udp_delay_ms, auto.fault.udp_fail_every_n),
+        };
+        if delay_ms > 0 {
+            tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+        }
+        if fail_every_n > 0 && auto.op_counter % fail_every_n == 0 {
+            return Err(VstpError::Timeout);
+        }
+        Ok(())
     }
 }
 
