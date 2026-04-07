@@ -34,6 +34,11 @@ impl VstpTcpConnection {
     pub fn peer_addr(&self) -> std::net::SocketAddr {
         self.peer_addr
     }
+
+    /// Get the session ID
+    pub fn session_id(&self) -> SessionId {
+        self.session_id
+    }
 }
 
 /// TCP server for VSTP protocol
